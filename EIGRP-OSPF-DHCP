@@ -1,0 +1,112 @@
+----------------------------------------------
+1- EIGRP with DHCP
+
+Router>en
+Router#conf t
+Router(config)#hostname R2
+R2(config)#int gi0/0
+R2(config-if)#no sh
+R2(config-if)#int gi0/1
+R2(config-if)#no sh
+R2(config-if)#int gi0/0
+R2(config-if)#ip add 1.1.1.1 255.255.255.0
+R2(config-if)#int gi0/1
+R2(config-if)#ip add 8.8.8.1 255.255.255.0
+R2(config-if)#exit
+R2(config)#
+R2(config)#ip dhcp pool LAN1
+R2(dhcp-config)#network 192.168.1.0 255.255.255.0
+R2(dhcp-config)#default-router 192.168.1.1
+R2(dhcp-config)#exit
+R2(config)#ip dhcp excluded-address 192.168.1.1
+R2(config)#ip dhcp pool LAN2
+R2(dhcp-config)#network 192.168.2.0 255.255.255.0
+R2(dhcp-config)#default-router 192.168.2.1
+R2(dhcp-config)#exit
+R2(config)#ip dhcp excluded-address 192.168.2.1
+R2(config)#router eigrp 1
+R2(config-router)#network 1.1.1.0
+
+Router>en
+Router#conf t
+Router(config)#hostname R1
+R1(config)#int gig0/0
+R1(config-if)#ip add 1.1.1.2 255.255.255.0
+R1(config-if)#no sh
+R1(config-if)#int gi0/1
+R1(config-if)#ip add 192.168.1.1 255.255.255.0
+R1(config-if)#no shutdown
+R1(config-if)#exit
+R1(config)#router eigrp 1
+R1(config-router)#network 1.1.1.0
+R1(config-router)#
+	// %DUAL-5-NBRCHANGE: IP-EIGRP 1: Neighbor 1.1.1.1 (GigabitEthernet0/0) is up: new adjacency
+R1(config-router)#network 192.168.1.0
+R1(config-router)#int gi0/1
+R1(config-if)#ip helper-address 1.1.1.1
+
+----------------------------------------------
+2 - OSPF with DHCP
+
+R2(config-router)#int gi0/1
+R2(config-if)#ip address 8.8.8.1 255.255.255.0
+R2(config-if)#no shutdown
+
+Router>en
+Router#conf t
+Router(config)#hostname R3
+R3(config)#int gi0/0
+R3(config-if)#ip add 8.8.8.2 255.255.255.0
+R3(config-if)#no sh
+R3(config-if)#int gi0/1
+R3(config-if)#ip add 192.168.2.1 255.255.255.0
+R3(config-if)#no sh
+
+R2(config)#router ospf 1
+R2(config-router)#network 8.8.8.0 0.0.0.255 area 0
+R2(config-router)#
+
+R2(config)#router eigrp 1
+R2(config-router)#no network 1.0.0.0
+R2(config-router)#network 192.168.1.0 0.0.0.255
+R2(config-router)#network 192.168.2.0 0.0.0.255
+R2(config-router)#
+R2(config-router)#router ospf 1
+R2(config-router)#exit
+R2(config)#
+
+
+R3(config-if)#router ospf 1
+R3(config-router)#network 8.8.8.0 ?
+  //A.B.C.D  OSPF wild card bits
+R3(config-router)#network 8.8.8.0 0.0.0.255 area 0
+R3(config-router)#
+	//00:25:13: %OSPF-5-ADJCHG: Process 1, Nbr 8.8.8.1 on GigabitEthernet0/0 from LOADING to FULL, Loading Done
+R3(config-router)#network 192.168.2.0 0.0.0.255 area 1
+R3(config-router)#int gi0/1
+R3(config-if)#ip help
+R3(config-if)#ip helper-address 8.8.8.1
+
+----------------------------------------------
+3- Connecting OSPF and EIGRP to Dynamic Routing
+
+R2(config)#router ospf 1
+R2(config-router)#redistribute eigrp 1 subnets ?
+  //tag  Set tag for routes redistributed into OSPF
+  //<cr>
+R2(config-router)#redistribute eigrp 1 subnets
+R2(config-router)#router eigrp 1
+R2(config-router)#red
+R2(config-router)#redistribute ospf ?
+  //<1-65535>  Process ID
+R2(config-router)#redistribute ospf 1 metric ?
+  //<1-4294967295>  Bandwidth metric in Kbits per second
+R2(config-router)#redistribute ospf 1 metric 1000 ?
+  //<0-4294967295>  EIGRP delay metric, in 10 microsecond units
+R2(config-router)#redistribute ospf 1 metric 1000 100 ?
+  //<0-255>  EIGRP reliability metric where 255 is 100% reliable
+R2(config-router)#redistribute ospf 1 metric 1000 100 255 ?
+  //<1-255>  EIGRP Effective bandwidth metric (Loading) where 255 is 100% loaded
+R2(config-router)#redistribute ospf 1 metric 1000 100 255 1 ?
+  //<1-65535>  EIGRP MTU of the path
+R2(config-router)#redistribute ospf 1 metric 1000 100 255 1 1500
